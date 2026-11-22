@@ -1,6 +1,6 @@
 /* Service worker: simpan app dalam cache supaya boleh guna offline.
  * Naikkan VERSION setiap kali fail app berubah. */
-const VERSION = 'mypdf-v1';
+const VERSION = 'mypdf-v2';
 const ASSETS = [
   './',
   'index.html',

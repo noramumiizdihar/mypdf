@@ -174,14 +174,62 @@ async function makeThumb(pdf, annots) {
   return c.toDataURL('image/jpeg', 0.75);
 }
 
-async function addFiles(files) {
-  const pdfs = [...files].filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
-  if (!pdfs.length) { toast('Sila pilih fail PDF'); return; }
-  let lastId = null;
-  busy(true, 'Menyimpan PDF dalam telefon…');
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+const isImage = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(f.name);
+
+/* Tukar gambar jadi PDF satu halaman supaya semua tool boleh digunakan */
+async function imageToPdf(file) {
+  let bmp;
   try {
-    for (const f of pdfs) {
-      const buf = await f.arrayBuffer();
+    bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    // fallback untuk browser lama
+    bmp = await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('format gambar tak disokong')); };
+      img.src = url;
+    });
+  }
+  const srcW = bmp.width, srcH = bmp.height;
+  const k = Math.min(1, 3000 / Math.max(srcW, srcH)); // had saiz supaya telefon tak berat
+  const w = Math.round(srcW * k), h = Math.round(srcH * k);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  if (bmp.close) bmp.close();
+  const jpg = await new Promise((resolve, reject) =>
+    c.toBlob(b => (b ? b.arrayBuffer().then(resolve, reject) : reject(new Error('gagal proses gambar'))), 'image/jpeg', 0.9));
+
+  await loadScript('vendor/pdf-lib.min.js');
+  const out = await PDFLib.PDFDocument.create();
+  const img = await out.embedJpg(jpg);
+  const pw = 595, ph = Math.round(pw * h / w); // lebar A4, tinggi ikut gambar
+  out.addPage([pw, ph]).drawImage(img, { x: 0, y: 0, width: pw, height: ph });
+  const bytes = await out.save();
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+async function addFiles(files) {
+  const list = [...files].filter(f => isPdf(f) || isImage(f));
+  if (!list.length) { toast('Sila pilih fail PDF atau gambar'); return; }
+  let lastId = null;
+  busy(true, 'Menyimpan dalam telefon…');
+  try {
+    for (const f of list) {
+      let buf;
+      if (isPdf(f)) {
+        buf = await f.arrayBuffer();
+      } else {
+        try { buf = await imageToPdf(f); } catch (err) {
+          console.error(err);
+          toast(`"${f.name}" tak dapat dibuka (${err.message})`, 3500);
+          continue;
+        }
+      }
       let pdf;
       try {
         pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
@@ -193,7 +241,8 @@ async function addFiles(files) {
       const id = uid();
       let thumb = '';
       try { thumb = await makeThumb(pdf); } catch (e) { console.warn(e); }
-      const meta = { id, name: f.name, size: f.size, pages: pdf.numPages, added: Date.now(), opened: Date.now(), thumb, lastPage: 1 };
+      const name = isPdf(f) ? f.name : f.name.replace(/\.[^.]+$/, '') + '.pdf';
+      const meta = { id, name, size: buf.byteLength, pages: pdf.numPages, added: Date.now(), opened: Date.now(), thumb, lastPage: 1, fromImage: !isPdf(f) };
       await DB.put('files', buf, id);
       await DB.put('docs', meta);
       pdf.destroy();
@@ -207,7 +256,7 @@ async function addFiles(files) {
   }
   requestPersist();
   await renderLibrary();
-  if (lastId && pdfs.length === 1) openDoc(lastId);
+  if (lastId && list.length === 1) openDoc(lastId);
 }
 
 async function requestPersist() {

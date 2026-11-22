@@ -4,7 +4,7 @@ PWA untuk upload PDF puzzle (word search, murder mystery, dll.) dan conteng teru
 Semua PDF dan conteng disimpan **dalam telefon** (IndexedDB) dan app boleh digunakan **offline**.
 
 ## Fungsi
-- **Upload PDF**: boleh pilih beberapa fail sekali gus. Fail disimpan dalam storan telefon.
+- **Upload PDF atau gambar** (JPG, PNG, WebP, dll.): boleh pilih beberapa fail sekali gus. Gambar ditukar jadi PDF satu halaman supaya semua tool boleh digunakan. Fail disimpan dalam storan telefon.
 - **Pen**: ikut tekanan stylus (S Pen / Apple Pencil). Ada 6 warna dan saiz boleh ubah.
 - **Highlight**: penanda lutsinar, teks di bawahnya masih nampak.
 - **Garis**: highlight garis lurus, sesuai untuk word search. Ia snap sendiri ke arah mendatar, menegak atau pepenjuru.
