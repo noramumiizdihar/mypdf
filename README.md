@@ -20,7 +20,7 @@ App ni mesti di-host atas **HTTPS** supaya service worker dan install jalan. Car
 
 1. Pergi ke repo, kemudian **Settings → Pages**.
 2. Untuk *Source* pilih **Deploy from a branch**, pilih branch dan folder `/ (root)`, lepas tu **Save**.
-3. Buka link `https://<username>.github.io/mypdf/` di Chrome (Android) atau Safari (iPhone/iPad).
+3. Buka link `https://noramumiizdihar.github.io/mypdf/` di Chrome (Android) atau Safari (iPhone/iPad).
 4. Install: **⋮ → Add to Home screen / Install app** (Android), atau **Share → Add to Home Screen** (iOS).
 
 ## Jalankan secara lokal
