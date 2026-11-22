@@ -20,9 +20,11 @@
 <!-- ============ LIBRARY ============ -->
 <section id="library" class="screen">
   <header class="bar">
-    <h1><img src="icons/icon.svg" alt="" width="28" height="28"> MyPDF Puzzle</h1>
+    <h1><img src="icons/icon.svg" alt="" width="28" height="28"> <span>MyPDF<span class="wide-only"> Puzzle</span></span></h1>
     <button id="installBtn" class="btn ghost hidden" type="button">Install</button>
-    <label class="btn primary" for="fileInput">+ Upload</label>
+    <label class="btn ghost" for="imageInput">🖼️ Gambar</label>
+    <input id="imageInput" type="file" accept="image/*" multiple hidden>
+    <label class="btn primary" for="fileInput">+ PDF</label>
     <input id="fileInput" type="file" accept="application/pdf,.pdf,image/*" multiple hidden>
   </header>
 
@@ -31,7 +33,7 @@
     <div id="empty" class="empty hidden">
       <div class="empty-icon">🧩</div>
       <h2>Belum ada puzzle</h2>
-      <p>Tekan <b>+ Upload</b> untuk tambah PDF atau gambar word search, murder mystery atau apa-apa puzzle.<br>
+      <p>Tekan <b>+ PDF</b> atau <b>🖼️ Gambar</b> untuk tambah word search, murder mystery atau apa-apa puzzle.<br>
       Fail disimpan dalam telefon kau — boleh main offline.</p>
     </div>
   </main>

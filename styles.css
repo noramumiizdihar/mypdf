@@ -36,7 +36,9 @@ button { font: inherit; color: inherit; }
   background: var(--bar); color: var(--bar-text);
   flex: none; position: relative; z-index: 5;
 }
-.bar h1 { font-size: 18px; margin: 0; flex: 1; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.bar h1 { font-size: 18px; margin: 0; flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.bar h1 > span { overflow: hidden; text-overflow: ellipsis; }
+.bar h1 img { flex: none; }
 .btn {
   border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer;
   font-weight: 600; font-size: 14px; white-space: nowrap; user-select: none;
@@ -169,6 +171,10 @@ body.dragover .lib-main { outline: 3px dashed var(--accent); outline-offset: -10
 .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@media (max-width: 440px) {
+  .wide-only { display: none; }
+  .bar .btn { padding: 8px 10px; }
+}
 @media (max-width: 380px) {
   .tools button span { font-size: 10px; }
   .swatch { width: 24px; height: 24px; }

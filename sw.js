@@ -1,6 +1,6 @@
 /* Service worker: simpan app dalam cache supaya boleh guna offline.
  * Naikkan VERSION setiap kali fail app berubah. */
-const VERSION = 'mypdf-v2';
+const VERSION = 'mypdf-v3';
 const ASSETS = [
   './',
   'index.html',
@@ -17,7 +17,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -36,7 +36,7 @@ self.addEventListener('fetch', event => {
     const cache = await caches.open(VERSION);
     const key = req.mode === 'navigate' ? 'index.html' : req;
     const cached = await cache.match(key, { ignoreSearch: true });
-    const network = fetch(req).then(res => {
+    const network = fetch(req.url, { cache: 'no-cache' }).then(res => {
       if (res && res.ok && res.type === 'basic') cache.put(key, res.clone());
       return res;
     }).catch(() => null);

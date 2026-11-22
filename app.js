@@ -1,6 +1,8 @@
 /* MyPDF Puzzle — upload PDF, conteng dengan jari / stylus, simpan dalam telefon. */
 'use strict';
 
+const APP_VERSION = 'v3';
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 
 /* =========================================================================
@@ -148,13 +150,13 @@ async function renderLibrary() {
 
 async function updateStorageInfo() {
   const el = $('#storageInfo');
-  if (!navigator.storage || !navigator.storage.estimate) { el.textContent = ''; return; }
+  if (!navigator.storage || !navigator.storage.estimate) { el.textContent = 'Versi ' + APP_VERSION; return; }
   try {
     const { usage, quota } = await navigator.storage.estimate();
     const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : false;
     el.textContent = `Storan telefon digunakan: ${fmtSize(usage || 0)} / ${fmtSize(quota || 0)}` +
-      (persisted ? ' · 🔒 storan kekal' : '');
-  } catch { el.textContent = ''; }
+      (persisted ? ' · 🔒 storan kekal' : '') + ' · Versi ' + APP_VERSION;
+  } catch { el.textContent = 'Versi ' + APP_VERSION; }
 }
 
 async function makeThumb(pdf, annots) {
@@ -339,6 +341,7 @@ async function closeDoc(silent) {
   d.pdf.destroy();
   stackEl.innerHTML = '';
   $('#menu').classList.add('hidden');
+  if (!silent && updateReady) { location.reload(); return; }
   if (!silent) {
     $('#viewer').classList.add('hidden');
     $('#library').classList.remove('hidden');
@@ -1115,11 +1118,11 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- upload ---------- */
-$('#fileInput').addEventListener('change', e => {
+['#fileInput', '#imageInput'].forEach(sel => $(sel).addEventListener('change', e => {
   const files = e.target.files;
   if (files && files.length) addFiles(files);
   e.target.value = '';
-});
+}));
 ['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => {
   if ($('#library').classList.contains('hidden')) return;
   e.preventDefault(); document.body.classList.add('dragover');
@@ -1144,8 +1147,25 @@ $('#installBtn').addEventListener('click', async () => {
   $('#installBtn').classList.add('hidden');
 });
 
+// Auto-update: bila versi baru app siap dimuat turun, reload (bukan masa tengah conteng)
+let updateReady = false;
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err)));
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // kali pertama install, tak perlu reload
+    if (doc) { updateReady = true; toast('Versi baru app sedia — akan dikemas kini bila kau kembali ke senarai'); }
+    else location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+      })
+      .catch(err => console.warn('SW', err));
+  });
 }
 
 /* ---------- start ---------- */
