@@ -8,6 +8,10 @@ Semua PDF dan conteng disimpan **dalam telefon** (IndexedDB) dan app boleh digun
 - **Pen**: ikut tekanan stylus (S Pen / Apple Pencil). Ada 6 warna dan saiz boleh ubah.
 - **Highlight**: penanda lutsinar, teks di bawahnya masih nampak.
 - **Garis**: highlight garis lurus, sesuai untuk word search. Ia snap sendiri ke arah mendatar, menegak atau pepenjuru.
+- **Word search pintar** (butang 🔍):
+  - App kesan grid huruf sendiri, dari teks PDF atau guna OCR untuk gambar/scan. OCR berjalan dalam telefon dan boleh digunakan offline.
+  - Tool **Garis** melekat pada huruf: tarik kasar-kasar dari huruf pertama ke terakhir, atau ketik huruf pertama kemudian huruf terakhir.
+  - Senarai perkataan dikesan automatik. Perkataan yang dijumpai dipotong (✓), dan butang 💡 tunjuk jawapan. Kau boleh tambah atau buang perkataan sendiri.
 - **Padam**: sapu atas conteng untuk padamkannya.
 - **Undo / Redo**, padam semua conteng satu halaman atau seluruh PDF.
 - **Zoom**: cubit dengan 2 jari, atau guna butang − / +.
@@ -30,6 +34,6 @@ python3 -m http.server 8000
 ```
 
 ## Nota
-- Library: [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174 (paparan) dan [pdf-lib](https://pdf-lib.js.org/) 1.17.1 (export). Kedua-duanya dalam folder `vendor/`, jadi app tak perlu internet.
+- Library: [Tesseract.js](https://tesseract.projectnaptha.com/) 5.1.1 (OCR, model `eng`), [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174 (paparan) dan [pdf-lib](https://pdf-lib.js.org/) 1.17.1 (export). Kedua-duanya dalam folder `vendor/`, jadi app tak perlu internet.
 - Bila ubah fail app, naikkan `VERSION` dalam `sw.js` supaya telefon dapat versi baru.
 - App minta storan "kekal" (persistent) supaya browser tak padam PDF bila telefon kurang ruang. Tapi kalau kau *Clear site data* atau uninstall browser, data tetap hilang.

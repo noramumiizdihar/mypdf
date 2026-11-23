@@ -1,11 +1,12 @@
 /* Service worker: simpan app dalam cache supaya boleh guna offline.
  * Naikkan VERSION setiap kali fail app berubah. */
-const VERSION = 'mypdf-v3';
+const VERSION = 'mypdf-v4';
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
   'app.js',
+  'wordsearch.js',
   'manifest.webmanifest',
   'vendor/pdf.min.js',
   'vendor/pdf.worker.min.js',

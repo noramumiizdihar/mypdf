@@ -180,3 +180,53 @@ body.dragover .lib-main { outline: 3px dashed var(--accent); outline-offset: -10
   .swatch { width: 24px; height: 24px; }
   .chip { padding: 6px 8px; }
 }
+
+/* ---------- word search ---------- */
+.tap-marker {
+  position: absolute; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%);
+  border: 3px solid var(--accent); background: rgba(245,158,11,.2); pointer-events: none;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+@keyframes pulse { to { transform: translate(-50%, -50%) scale(1.25); } }
+.word-bubble {
+  position: absolute; left: 50%; top: calc(64px + var(--safe-top)); transform: translate(-50%, -8px);
+  background: rgba(15,23,42,.88); color: #fff; font-weight: 700; letter-spacing: .08em; font-size: 18px;
+  padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s, transform .2s;
+  pointer-events: none; z-index: 6; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis;
+}
+.word-bubble.show { opacity: 1; transform: translate(-50%, 0); }
+.word-bubble.good { background: #16a34a; }
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; max-height: 62%; overflow-y: auto; background: var(--card); color: var(--text);
+  border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.35);
+  padding: 6px 14px calc(14px + var(--safe-bottom));
+}
+.sheet-head { display: flex; align-items: center; gap: 8px; position: sticky; top: -6px; background: var(--card); padding: 6px 0; }
+.sheet-head b { flex: 1; font-size: 16px; }
+.sheet-head .icon-btn { color: var(--text); }
+.wp-count { font-size: 13px; color: #16a34a; font-weight: 700; }
+.wp-status { font-size: 13px; color: var(--muted); margin: 2px 0 8px; min-height: 1em; }
+.wp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.wp-actions .chip { color: var(--text); border-color: rgba(148,163,184,.5); }
+.wp-actions .chip:disabled { opacity: .4; }
+.wp-grid {
+  font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; background: rgba(148,163,184,.15);
+  padding: 8px 10px; border-radius: 10px; overflow-x: auto; margin: 0 0 8px;
+}
+.wp-form { display: flex; gap: 8px; margin-bottom: 8px; }
+.wp-form input {
+  flex: 1; min-width: 0; font-size: 16px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(148,163,184,.5); background: transparent; color: var(--text); text-transform: uppercase;
+}
+.wp-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.wp-list li {
+  display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 10px;
+  background: rgba(148,163,184,.15); font-weight: 600; font-size: 14px; letter-spacing: .03em;
+}
+.wp-list li .w { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-list li button { border: 0; background: transparent; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+.wp-list li button:disabled { opacity: .25; }
+.wp-list li.found { background: rgba(22,163,74,.18); }
+.wp-list li.found .w { text-decoration: line-through; color: #16a34a; }
+.wp-list li.missing .w { color: var(--muted); font-weight: 400; }
+.wp-tip { font-size: 12px; color: var(--muted); margin: 10px 0 0; }

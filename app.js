@@ -1,7 +1,7 @@
 /* MyPDF Puzzle — upload PDF, conteng dengan jari / stylus, simpan dalam telefon. */
 'use strict';
 
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 
@@ -328,6 +328,9 @@ async function openDoc(id) {
 async function closeDoc(silent) {
   if (!doc) return;
   const d = doc;
+  clearPending();
+  closePanel();
+  WS.terminate();
   doc = null;
   await flushSave(d);
   try {
@@ -754,7 +757,18 @@ function startDrawing(p, e) {
       pts: hasPressure ? [[x, y, pressureOf(e)]] : [[x, y]],
     };
     if (hasPressure) drawing.stroke.p = 1;
-    if (tool === 'line') drawing.start = pt;
+    if (tool === 'line') {
+      drawing.start = pt;
+      const g = gridOf(p.num);
+      const cell = g && WS.cellAt(g, pt.x / p.cssW, pt.y / p.cssH);
+      if (cell) {
+        drawing.snap = { g, a: cell, b: cell };
+        drawing.stroke.pts = [WS.center(g, cell)];
+        drawing.stroke.w = r4(WS.lineWidth(g, p.ratio));
+      } else if (!g) {
+        ensureGrid(p, false, true);
+      }
+    }
   }
   requestLive();
 }
@@ -767,6 +781,17 @@ function moveDrawing(evs) {
       const pt = pagePoint(p, ev);
       drawing.cursor = pt;
       eraseAt(p, pt);
+    }
+  } else if (tool === 'line' && drawing.snap) {
+    const ev = evs[evs.length - 1];
+    const pt = pagePoint(p, ev);
+    const { g, a } = drawing.snap;
+    const b = WS.snapEnd(g, a, pt.x / p.cssW, pt.y / p.cssH, p.ratio);
+    drawing.snap.b = b;
+    drawing.stroke.pts = [WS.center(g, a), WS.center(g, b)];
+    if (b.r !== a.r || b.c !== a.c) {
+      const read = WS.readPath(g, a, b);
+      if (/[A-Z]/.test(read)) showBubble(read.split('').join(' '));
     }
   } else if (tool === 'line') {
     const ev = evs[evs.length - 1];
@@ -811,6 +836,8 @@ function finishDrawing() {
   const num = d.page.num;
   if (d.erased) {
     if (d.erased.length) pushAction({ t: 'erase', page: num, items: d.erased });
+  } else if (d.snap) {
+    finishSnap(d);
   } else if (d.stroke) {
     const s = d.stroke;
     if (s.pts.length === 2 && s.t === 'hl') {
@@ -822,6 +849,219 @@ function finishDrawing() {
     drawInk(d.page);
   }
 }
+
+/* =========================================================================
+ * Word search: grid, garis magnet, senarai perkataan
+ * ======================================================================= */
+const detecting = new Map();
+const wsStatus = {};
+let pendingTap = null; // { num, a, el }
+
+function gridOf(num) {
+  const g = doc && doc.annots.grids && doc.annots.grids[num];
+  return g && g.rowY ? g : null;
+}
+function wordsOf(num) {
+  doc.annots.words = doc.annots.words || {};
+  return doc.annots.words[num] || (doc.annots.words[num] = []);
+}
+function setStatus(num, text) {
+  wsStatus[num] = text;
+  if (panelPage === num) renderPanel();
+}
+
+function ensureGrid(p, force, quiet) {
+  doc.annots.grids = doc.annots.grids || {};
+  if (!force && doc.annots.grids[p.num]) return Promise.resolve(doc.annots.grids[p.num]);
+  if (detecting.has(p.num)) return detecting.get(p.num);
+  const d = doc;
+  const store = g => { d.annots.grids[p.num] = g; if (doc === d) markDirty(); };
+  if (!quiet) setStatus(p.num, 'Mengesan grid…');
+  else toast('Mengesan grid huruf…', 1500);
+  const job = (async () => {
+    const page = await d.pdf.getPage(p.num);
+    const g = await WS.detect(page, {
+      onGeom: geo => {
+        if (doc !== d) return;
+        store(geo);
+        const msg = `Grid ${geo.rowY.length}×${geo.colX.length} dikesan — garis akan melekat pada huruf`;
+        setStatus(p.num, geo.done ? '' : 'Membaca huruf…');
+        if (!panelPage) toast(msg, 3000);
+      },
+      onStep: t => setStatus(p.num, t),
+      onProgress: t => setStatus(p.num, t),
+    });
+    if (doc !== d) return g;
+    if (!g) {
+      store({ none: true });
+      setStatus(p.num, '');
+      if (!panelPage && quiet) toast('Tiada grid word search dikesan di halaman ini', 3000);
+    } else {
+      store(g);
+      const list = wordsOf(p.num);
+      for (const w of g.words || []) if (!list.includes(w)) list.push(w);
+      setStatus(p.num, '');
+      if (g.src === 'ocr' && !panelPage) toast(`Huruf siap dibaca ✓ ${g.words.length ? g.words.length + ' perkataan dijumpai' : ''}`, 3000);
+      markDirty();
+    }
+    return g;
+  })().catch(err => {
+    console.error(err);
+    if (doc === d) {
+      d.annots.grids[p.num] = d.annots.grids[p.num] || null;
+      setStatus(p.num, 'Gagal: ' + (err.message || err));
+    }
+    return null;
+  }).finally(() => detecting.delete(p.num));
+  detecting.set(p.num, job);
+  return job;
+}
+
+function clearPending() {
+  if (pendingTap && pendingTap.el) pendingTap.el.remove();
+  pendingTap = null;
+}
+
+function addWordStroke(p, g, a, b, extra) {
+  const s = {
+    t: 'hl', c: state.colors.hl, w: r4(WS.lineWidth(g, p.ratio)),
+    pts: a.r === b.r && a.c === b.c ? [WS.center(g, a)] : [WS.center(g, a), WS.center(g, b)],
+  };
+  const read = WS.readPath(g, a, b);
+  const match = WS.matchList(read, wordsOf(p.num), g.src === 'ocr');
+  s.word = match || read;
+  Object.assign(s, extra);
+  pageStrokes(p.num, true).push(s);
+  pushAction({ t: 'add', page: p.num, s });
+  drawInk(p);
+  if (match) {
+    const list = wordsOf(p.num);
+    const n = list.filter(w => isFound(p.num, w)).length;
+    showBubble(`✓ ${match}  (${n}/${list.length})`, true);
+  } else if (/[A-Z]/.test(read) && read.length > 1) {
+    showBubble(read, false);
+  }
+  return s;
+}
+
+function finishSnap(d) {
+  const p = d.page, { g, a, b } = d.snap;
+  const isTap = a.r === b.r && a.c === b.c;
+  if (!isTap) { clearPending(); addWordStroke(p, g, a, b); return; }
+  if (pendingTap && pendingTap.num === p.num) {
+    const start = pendingTap.a;
+    clearPending();
+    if (start.r === a.r && start.c === a.c) return; // ketik sel sama = batal
+    const [cx, cy] = WS.center(g, a);
+    const end = WS.snapEnd(g, start, cx, cy, p.ratio);
+    addWordStroke(p, g, start, end);
+    return;
+  }
+  clearPending();
+  const el = document.createElement('div');
+  el.className = 'tap-marker';
+  const [cx, cy] = WS.center(g, a);
+  el.style.left = cx * 100 + '%';
+  el.style.top = cy * 100 + '%';
+  el.style.width = g.colPitch * 100 * 1.1 + '%';
+  p.el.appendChild(el);
+  pendingTap = { num: p.num, a, el };
+  showBubble('Ketik huruf terakhir…');
+}
+
+function isFound(num, word) {
+  return pageStrokes(num).some(s => s.word === word);
+}
+
+let bubbleTimer;
+function showBubble(text, good) {
+  const el = $('#wordBubble');
+  el.textContent = text;
+  el.classList.toggle('good', !!good);
+  el.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => el.classList.remove('show'), good ? 2200 : 1400);
+}
+
+/* ---------- panel ---------- */
+let panelPage = 0;
+function openPanel() {
+  if (!doc) return;
+  const num = currentPageNum();
+  panelPage = num;
+  $('#wordPanel').classList.remove('hidden');
+  const p = doc.pages[num - 1];
+  const cached = doc.annots.grids && doc.annots.grids[num];
+  if (cached === undefined || cached === null) ensureGrid(p);
+  renderPanel();
+}
+function closePanel() {
+  panelPage = 0;
+  $('#wordPanel').classList.add('hidden');
+}
+
+function renderPanel() {
+  if (!panelPage || !doc) return;
+  const num = panelPage;
+  const g = gridOf(num);
+  const cached = doc.annots.grids && doc.annots.grids[num];
+  $('#wpTitle').textContent = `Word search · halaman ${num}`;
+  let status = wsStatus[num] || '';
+  if (!status) {
+    if (g) status = `Grid ${g.rowY.length}×${g.colX.length} ✓ (${g.src === 'text' ? 'teks PDF' : 'OCR gambar'})`;
+    else if (cached && cached.none) status = 'Tiada grid dikesan di halaman ini. Kau masih boleh guna Highlight / Garis biasa.';
+  }
+  $('#wpStatus').textContent = status;
+  $('#wpGrid').textContent = g ? g.letters.map(r => r.split('').join(' ')).join('\n') : '';
+  $('#wpShowGrid').disabled = !g;
+
+  const list = g ? wordsOf(num) : (doc.annots.words && doc.annots.words[num]) || [];
+  const ul = $('#wpList');
+  ul.innerHTML = '';
+  const found = list.filter(w => isFound(num, w)).length;
+  $('#wpCount').textContent = list.length ? `${found} / ${list.length} dijumpai` : '';
+  for (const w of list) {
+    const li = document.createElement('li');
+    const ok = isFound(num, w);
+    const inGrid = g && WS.findWord(g, w, g.src === 'ocr');
+    li.className = ok ? 'found' : (g && g.done && !inGrid ? 'missing' : '');
+    li.innerHTML = '<span class="w"></span><button type="button" class="hint" title="Tunjuk jawapan">💡</button><button type="button" class="rm" title="Buang">✕</button>';
+    li.querySelector('.w').textContent = w + (li.className === 'missing' ? '  (tak jumpa)' : '');
+    li.querySelector('.hint').disabled = ok || !inGrid;
+    li.querySelector('.hint').addEventListener('click', () => {
+      const m = WS.findWord(g, w, g.src === 'ocr');
+      if (!m) return;
+      const p = doc.pages[num - 1];
+      const s = addWordStroke(p, g, { r: m.r0, c: m.c0 }, { r: m.r1, c: m.c1 }, { hint: 1 });
+      s.word = w;
+      renderPanel();
+    });
+    li.querySelector('.rm').addEventListener('click', () => {
+      const arr = wordsOf(num);
+      arr.splice(arr.indexOf(w), 1);
+      markDirty();
+    });
+    ul.appendChild(li);
+  }
+}
+
+$('#wsBtn').addEventListener('click', () => (panelPage ? closePanel() : openPanel()));
+$('#wpClose').addEventListener('click', closePanel);
+$('#wpShowGrid').addEventListener('click', () => $('#wpGrid').classList.toggle('hidden'));
+$('#wpDetect').addEventListener('click', () => {
+  if (!doc || !panelPage) return;
+  ensureGrid(doc.pages[panelPage - 1], true);
+});
+$('#wpForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!doc || !panelPage) return;
+  const inp = $('#wpInput');
+  const words = inp.value.split(/[,\n]+/).map(w => WS.normalize(w)).filter(w => w.length >= 2);
+  const list = wordsOf(panelPage);
+  for (const w of words) if (!list.includes(w)) list.push(w);
+  inp.value = '';
+  markDirty();
+});
 
 function cancelDrawing() {
   const d = drawing;
@@ -917,6 +1157,7 @@ let saveTimer;
 function markDirty() {
   doc.dirty = true;
   updateUndoButtons();
+  if (panelPage) renderPanel();
   clearTimeout(saveTimer);
   const d = doc;
   saveTimer = setTimeout(() => flushSave(d), 600);
@@ -1015,6 +1256,7 @@ async function exportPdf() {
  * ======================================================================= */
 function setTool(tool) {
   state.tool = tool;
+  if (tool !== 'line') clearPending();
   pagesEl.dataset.tool = tool;
   document.querySelectorAll('.tools button').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   const tb = $('#toolbar');
